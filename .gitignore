@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.o
+bin/
+
+# IQ files and analysis
+*.iq
+*.png
+*.log
+
+# Editor files
+*.swp
+*~
+.vscode/
+.idea/
+
+# Test outputs
+test_*.iq
+spectrum_*.png
+signal_*.png
