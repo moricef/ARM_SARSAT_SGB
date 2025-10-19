@@ -4,7 +4,7 @@
  *
  * Generates I/Q samples for T.018 2nd generation beacons:
  * - OQPSK modulation with Tc/2 offset
- * - DSSS spreading (128 chips/bit)
+ * - DSSS spreading (256 chips/bit)
  * - Sample rate: 2.5 MHz (65.1 samples/chip)
  */
 
@@ -14,18 +14,19 @@
 #include <stdint.h>
 #include <complex.h>
 
-// T.018 modulation parameters
-#define OQPSK_CHIP_RATE         38400       // 38.4 kchips/s
+// T.018 modulation parameters (Section 2.2.3)
+#define OQPSK_CHIP_RATE         38400       // 38.4 kchips/s per channel
 #define OQPSK_SAMPLE_RATE       2500000     // 2.5 MHz (PlutoSDR validated with FGB)
 #define OQPSK_SAMPLES_PER_CHIP  65.104167   // 2.5M / 38.4k = 65.1 samples/chip
-#define OQPSK_DATA_RATE         300         // 300 bps
-#define OQPSK_CHIPS_PER_BIT     128         // 38.4k chips/s ÷ 300 bps = 128 chips/bit
+#define OQPSK_DATA_RATE         300         // 300 bps total
+#define OQPSK_CHIPS_PER_BIT     256         // 256 chips per bit (spreading factor)
 
-// Frame timing
+// Frame timing (T.018 Section 2.2.3.b: odd bits→I, even bits→Q)
 #define OQPSK_PREAMBLE_BITS     50          // Preamble duration
 #define OQPSK_MESSAGE_BITS      250         // Message data
 #define OQPSK_TOTAL_BITS        300         // Preamble + Message
-#define OQPSK_TOTAL_SAMPLES     2600000     // 300 bits × 128 chips × 65.1 samp/chip + margin
+#define OQPSK_BITS_PER_CHANNEL  150         // 150 bits on I, 150 bits on Q (parallel)
+#define OQPSK_TOTAL_SAMPLES     2600000     // 38,400 chips × 65.1 samp/chip + margin
 
 // OQPSK modulator state
 typedef struct {
@@ -45,13 +46,16 @@ void oqpsk_init(oqpsk_state_t *state);
 /**
  * @brief Generate I/Q samples for complete T.018 frame
  * @param frame_bits 252-bit frame (2 header + 250 data)
- * @param iq_samples Output buffer (960000 complex samples)
+ * @param iq_samples Output buffer (~2.5M complex samples)
  * @return Number of samples generated
  *
- * Frame structure:
- * - 50 bits preamble (all 0s)
- * - 2 bits header
- * - 250 bits message (202 info + 48 BCH)
+ * T.018 Section 2.2.3.b: Implements odd/even bit separation
+ * - 300 bits total (50 preamble + 250 data)
+ * - Odd bits (1,3,5,...) → I channel: 150 bits @ 150 bps
+ * - Even bits (2,4,6,...) → Q channel: 150 bits @ 150 bps
+ * - Each bit spread over 256 chips (38,400 chips total per channel)
+ * - Q channel delayed by Tc/2 (OQPSK offset)
+ * - Duration: 1000 ms @ 38.4 kchips/s
  */
 uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
                               float complex *iq_samples);
@@ -59,9 +63,9 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
 /**
  * @brief Generate I/Q samples for single data bit
  * @param bit Data bit (0 or 1)
- * @param i_chips I-channel PRN (128 chips)
- * @param q_chips Q-channel PRN (128 chips)
- * @param iq_samples Output buffer (~8333 samples)
+ * @param i_chips I-channel PRN (256 chips)
+ * @param q_chips Q-channel PRN (256 chips)
+ * @param iq_samples Output buffer (~16666 samples)
  * @param state Modulator state
  * @return Number of samples generated
  */

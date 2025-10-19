@@ -4,7 +4,7 @@
  *
  * Complete port from dsPIC33CK implementation:
  * - OQPSK modulation with Tc/2 offset (Q-channel delayed by half chip)
- * - DSSS spreading (128 chips/bit using PRN sequences)
+ * - DSSS spreading (256 chips/bit using PRN sequences)
  * - Sample rate: 2.5 MHz (65.1 samples/chip)
  * - Chip rate: 38.4 kchips/s
  * - Data rate: 300 bps
@@ -102,9 +102,9 @@ uint32_t oqpsk_modulate_bit(uint8_t bit,
         sample_accumulator -= num_samples;
 
         for (int s = 0; s < num_samples; s++) {
-            // Safety check (each bit generates ~8,333 samples: 128 chips × 65.1 samp/chip)
-            if (sample_idx >= 9000) {
-                fprintf(stderr, "OVERFLOW in oqpsk_modulate_bit: sample_idx=%u (max ~8333)\n", sample_idx);
+            // Safety check (each bit generates ~16,666 samples: 256 chips × 65.1 samp/chip)
+            if (sample_idx >= 18000) {
+                fprintf(stderr, "OVERFLOW in oqpsk_modulate_bit: sample_idx=%u (max ~16666)\n", sample_idx);
                 return sample_idx;
             }
 
@@ -142,61 +142,128 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
     uint8_t tx_frame[FRAME_TOTAL_BITS];
     build_transmission_frame(frame_bits, tx_frame);
 
-    // Initialize OQPSK state
-    oqpsk_state_t state;
-    oqpsk_init(&state);
+    // T.018 Section 2.2.3.b: Separate into odd/even bits
+    // Odd bits (1st, 3rd, 5th...) → I channel (150 bits @ 150 bps)
+    // Even bits (2nd, 4th, 6th...) → Q channel (150 bits @ 150 bps)
+    uint8_t i_bits[FRAME_TOTAL_BITS / 2];  // 150 bits
+    uint8_t q_bits[FRAME_TOTAL_BITS / 2];  // 150 bits
+
+    for (int i = 0; i < FRAME_TOTAL_BITS / 2; i++) {
+        i_bits[i] = tx_frame[2 * i];      // Odd: indices 0, 2, 4, ...
+        q_bits[i] = tx_frame[2 * i + 1];  // Even: indices 1, 3, 5, ...
+    }
+
+    printf("Modulating T.018 frame (300 bits → 150 I + 150 Q)...\n");
 
     // Initialize PRN generator
     prn_state_t prn_state;
     prn_init(&prn_state, 0);  // Normal mode
 
-    uint32_t total_samples = 0;
-    int8_t i_chips[PRN_CHIPS_PER_BIT];
-    int8_t q_chips[PRN_CHIPS_PER_BIT];
+    // Generate complete PRN sequences (150 bits × 256 chips = 38,400 chips each)
+    int8_t *i_prn = malloc(38400 * sizeof(int8_t));
+    int8_t *q_prn = malloc(38400 * sizeof(int8_t));
 
-    printf("Modulating T.018 frame (%d bits)...\n", FRAME_TOTAL_BITS);
+    if (!i_prn || !q_prn) {
+        fprintf(stderr, "Failed to allocate PRN buffers\n");
+        free(i_prn);
+        free(q_prn);
+        return 0;
+    }
 
-    // Modulate each bit
-    for (int bit_idx = 0; bit_idx < FRAME_TOTAL_BITS; bit_idx++) {
-        uint8_t data_bit = tx_frame[bit_idx];
+    // Generate I-channel PRN (38,400 chips)
+    int8_t i_chunk[PRN_CHIPS_PER_BIT];
+    for (int bit = 0; bit < 150; bit++) {
+        prn_generate_i(&prn_state, i_chunk);
+        memcpy(&i_prn[bit * PRN_CHIPS_PER_BIT], i_chunk, PRN_CHIPS_PER_BIT);
+    }
 
-        // Generate PRN sequences for this bit
-        prn_generate_i(&prn_state, i_chips);
-        prn_generate_q(&prn_state, q_chips);
+    // Reset PRN state for Q channel
+    prn_init(&prn_state, 0);
 
-        // Check buffer overflow before modulation
-        if (total_samples > OQPSK_TOTAL_SAMPLES - 20000) {
-            fprintf(stderr, "ERROR: Buffer overflow risk at bit %d (samples: %u)\n", bit_idx, total_samples);
-            return total_samples;
-        }
+    // Generate Q-channel PRN (38,400 chips)
+    int8_t q_chunk[PRN_CHIPS_PER_BIT];
+    for (int bit = 0; bit < 150; bit++) {
+        prn_generate_q(&prn_state, q_chunk);
+        memcpy(&q_prn[bit * PRN_CHIPS_PER_BIT], q_chunk, PRN_CHIPS_PER_BIT);
+    }
 
-        // Modulate this bit
-        uint32_t samples = oqpsk_modulate_bit(data_bit, i_chips, q_chips,
-                                              &iq_samples[total_samples], &state);
-        total_samples += samples;
-
-        // Progress indicator every 50 bits
-        if ((bit_idx + 1) % 50 == 0) {
-            printf("  %d/%d bits modulated (samples: %u)\n", bit_idx + 1, FRAME_TOTAL_BITS, total_samples);
+    // Apply DSSS spreading: XOR data bits with PRN
+    // T.018: bit=0 → invert PRN, bit=1 → keep PRN
+    for (int bit = 0; bit < 150; bit++) {
+        for (int chip = 0; chip < PRN_CHIPS_PER_BIT; chip++) {
+            int chip_idx = bit * PRN_CHIPS_PER_BIT + chip;
+            i_prn[chip_idx] = i_bits[bit] ? i_prn[chip_idx] : -i_prn[chip_idx];
+            q_prn[chip_idx] = q_bits[bit] ? q_prn[chip_idx] : -q_prn[chip_idx];
         }
     }
+
+    printf("  PRN sequences generated: 38,400 chips each (I and Q)\n");
+
+    // Generate I/Q samples with OQPSK (Q delayed by Tc/2)
+    uint32_t total_samples = 0;
+    float sample_accumulator = 0.0f;
+    float prev_i_chip = 0.0f;
+    float prev_q_chip = 0.0f;
+
+    for (int chip_idx = 0; chip_idx < 38400; chip_idx++) {
+        float curr_i_chip = (float)i_prn[chip_idx];
+        float curr_q_chip = (float)q_prn[chip_idx];
+
+        // Calculate number of samples for this chip
+        sample_accumulator += OQPSK_SAMPLES_PER_CHIP;
+        int num_samples = (int)sample_accumulator;
+        sample_accumulator -= num_samples;
+
+        for (int s = 0; s < num_samples; s++) {
+            if (total_samples >= OQPSK_TOTAL_SAMPLES) {
+                fprintf(stderr, "OVERFLOW: sample_idx=%u\n", total_samples);
+                free(i_prn);
+                free(q_prn);
+                return total_samples;
+            }
+
+            float fraction = (float)s / num_samples;
+
+            // I-channel: linear interpolation
+            float i_value = prev_i_chip + (curr_i_chip - prev_i_chip) * fraction;
+
+            // Q-channel: OQPSK half-chip delay
+            float q_value;
+            if (fraction < 0.5f) {
+                q_value = prev_q_chip;
+            } else {
+                q_value = prev_q_chip + (curr_q_chip - prev_q_chip) * (fraction - 0.5f) * 2.0f;
+            }
+
+            // Generate complex I/Q sample
+            iq_samples[total_samples++] = i_value + I * q_value;
+        }
+
+        prev_i_chip = curr_i_chip;
+        prev_q_chip = curr_q_chip;
+
+        // Progress indicator every 5000 chips
+        if ((chip_idx + 1) % 5000 == 0) {
+            printf("  %d/38400 chips (samples: %u)\n", chip_idx + 1, total_samples);
+        }
+    }
+
+    free(i_prn);
+    free(q_prn);
 
     printf("✓ Modulation complete: %u samples generated\n", total_samples);
 
     // Apply RRC pulse shaping filter
     printf("Applying RRC pulse shaping filter...\n");
 
-    // Allocate temporary buffer for unfiltered samples
     float complex *unfiltered = malloc(total_samples * sizeof(float complex));
     if (!unfiltered) {
         fprintf(stderr, "Failed to allocate memory for RRC filtering\n");
-        return total_samples;  // Return unfiltered if allocation fails
+        return total_samples;
     }
 
-    // Copy unfiltered samples
     memcpy(unfiltered, iq_samples, total_samples * sizeof(float complex));
 
-    // Initialize and apply RRC filter
     rrc_state_t rrc_state;
     rrc_init(&rrc_state);
     rrc_filter(&rrc_state, unfiltered, iq_samples, total_samples);

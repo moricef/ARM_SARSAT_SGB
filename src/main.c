@@ -85,7 +85,7 @@ static app_config_t default_config = {
     .altitude = 0,
 
     .frequency = 403000000ULL,      // 403 MHz (training)
-    .tx_gain_db = -10,              // Conservative gain
+    .tx_gain_db = 0,                // Maximum power for testing (0 dB attenuation)
     .tx_interval_sec = 10,          // 10 seconds for test mode
 
     .pluto_uri = "ip:192.168.2.1",

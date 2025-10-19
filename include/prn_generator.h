@@ -13,7 +13,7 @@
 
 // T.018 LFSR parameters
 #define PRN_LFSR_LENGTH     23          // LFSR register length
-#define PRN_CHIPS_PER_BIT   128         // Spreading factor (38.4 kchips/s ÷ 300 bps)
+#define PRN_CHIPS_PER_BIT   256         // Spreading factor
 
 // T.018 Table 2.2 initial states
 #define PRN_INIT_NORMAL_I   0x000001    // Normal mode I-channel: bit 0 = 1
