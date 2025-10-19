@@ -4,16 +4,19 @@
  *
  * Complete port from dsPIC33CK implementation:
  * - OQPSK modulation with Tc/2 offset (Q-channel delayed by half chip)
- * - DSSS spreading (256 chips/bit using PRN sequences)
- * - Sample rate: 400 kHz (10.42 samples/chip)
+ * - DSSS spreading (128 chips/bit using PRN sequences)
+ * - Sample rate: 2.5 MHz (65.1 samples/chip)
  * - Chip rate: 38.4 kchips/s
- * - Data rate: 300 bps (150 bps per channel)
+ * - Data rate: 300 bps
  * - Linear interpolation between chips
+ * - RRC pulse shaping filter (α=0.5)
  */
 
 #include "oqpsk_modulator.h"
 #include "prn_generator.h"
+#include "rrc_filter.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -99,6 +102,12 @@ uint32_t oqpsk_modulate_bit(uint8_t bit,
         sample_accumulator -= num_samples;
 
         for (int s = 0; s < num_samples; s++) {
+            // Safety check (each bit generates ~8,333 samples: 128 chips × 65.1 samp/chip)
+            if (sample_idx >= 9000) {
+                fprintf(stderr, "OVERFLOW in oqpsk_modulate_bit: sample_idx=%u (max ~8333)\n", sample_idx);
+                return sample_idx;
+            }
+
             float fraction = (float)s / OQPSK_SAMPLES_PER_CHIP;
 
             // I-channel: linear interpolation
@@ -155,6 +164,12 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
         prn_generate_i(&prn_state, i_chips);
         prn_generate_q(&prn_state, q_chips);
 
+        // Check buffer overflow before modulation
+        if (total_samples > OQPSK_TOTAL_SAMPLES - 20000) {
+            fprintf(stderr, "ERROR: Buffer overflow risk at bit %d (samples: %u)\n", bit_idx, total_samples);
+            return total_samples;
+        }
+
         // Modulate this bit
         uint32_t samples = oqpsk_modulate_bit(data_bit, i_chips, q_chips,
                                               &iq_samples[total_samples], &state);
@@ -162,11 +177,34 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
 
         // Progress indicator every 50 bits
         if ((bit_idx + 1) % 50 == 0) {
-            printf("  %d/%d bits modulated\n", bit_idx + 1, FRAME_TOTAL_BITS);
+            printf("  %d/%d bits modulated (samples: %u)\n", bit_idx + 1, FRAME_TOTAL_BITS, total_samples);
         }
     }
 
     printf("✓ Modulation complete: %u samples generated\n", total_samples);
+
+    // Apply RRC pulse shaping filter
+    printf("Applying RRC pulse shaping filter...\n");
+
+    // Allocate temporary buffer for unfiltered samples
+    float complex *unfiltered = malloc(total_samples * sizeof(float complex));
+    if (!unfiltered) {
+        fprintf(stderr, "Failed to allocate memory for RRC filtering\n");
+        return total_samples;  // Return unfiltered if allocation fails
+    }
+
+    // Copy unfiltered samples
+    memcpy(unfiltered, iq_samples, total_samples * sizeof(float complex));
+
+    // Initialize and apply RRC filter
+    rrc_state_t rrc_state;
+    rrc_init(&rrc_state);
+    rrc_filter(&rrc_state, unfiltered, iq_samples, total_samples);
+
+    free(unfiltered);
+
+    printf("✓ RRC filtering complete\n");
+
     return total_samples;
 }
 

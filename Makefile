@@ -20,6 +20,7 @@ SOURCES = $(SRC_DIR)/main.c \
           $(SRC_DIR)/t018_protocol.c \
           $(SRC_DIR)/prn_generator.c \
           $(SRC_DIR)/oqpsk_modulator.c \
+          $(SRC_DIR)/rrc_filter.c \
           $(SRC_DIR)/pluto_control.c
 
 # Object files
@@ -29,6 +30,7 @@ OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 HEADERS = $(INC_DIR)/t018_protocol.h \
           $(INC_DIR)/prn_generator.h \
           $(INC_DIR)/oqpsk_modulator.h \
+          $(INC_DIR)/rrc_filter.h \
           $(INC_DIR)/pluto_control.h
 
 # Default target

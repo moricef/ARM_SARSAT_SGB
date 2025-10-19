@@ -4,8 +4,8 @@
  *
  * Generates I/Q samples for T.018 2nd generation beacons:
  * - OQPSK modulation with Tc/2 offset
- * - DSSS spreading (256 chips/bit)
- * - Sample rate: 400 kHz (10.42 samples/chip)
+ * - DSSS spreading (128 chips/bit)
+ * - Sample rate: 2.5 MHz (65.1 samples/chip)
  */
 
 #ifndef OQPSK_MODULATOR_H
@@ -19,13 +19,13 @@
 #define OQPSK_SAMPLE_RATE       2500000     // 2.5 MHz (PlutoSDR validated with FGB)
 #define OQPSK_SAMPLES_PER_CHIP  65.104167   // 2.5M / 38.4k = 65.1 samples/chip
 #define OQPSK_DATA_RATE         300         // 300 bps
-#define OQPSK_CHIPS_PER_BIT     256         // Per channel (I or Q)
+#define OQPSK_CHIPS_PER_BIT     128         // 38.4k chips/s ÷ 300 bps = 128 chips/bit
 
 // Frame timing
 #define OQPSK_PREAMBLE_BITS     50          // Preamble duration
 #define OQPSK_MESSAGE_BITS      250         // Message data
 #define OQPSK_TOTAL_BITS        300         // Preamble + Message
-#define OQPSK_TOTAL_SAMPLES     5200000     // 300 bits × 256 chips × 65.1 samp/chip + margin
+#define OQPSK_TOTAL_SAMPLES     2600000     // 300 bits × 128 chips × 65.1 samp/chip + margin
 
 // OQPSK modulator state
 typedef struct {
@@ -59,9 +59,9 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
 /**
  * @brief Generate I/Q samples for single data bit
  * @param bit Data bit (0 or 1)
- * @param i_chips I-channel PRN (256 chips)
- * @param q_chips Q-channel PRN (256 chips)
- * @param iq_samples Output buffer (~2667 samples)
+ * @param i_chips I-channel PRN (128 chips)
+ * @param q_chips Q-channel PRN (128 chips)
+ * @param iq_samples Output buffer (~8333 samples)
  * @param state Modulator state
  * @return Number of samples generated
  */
