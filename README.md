@@ -85,7 +85,7 @@ sudo apt install build-essential libiio-dev libiio-utils git
 ### 1. Clone Repository
 
 ```bash
-cd /home/fab2/Developpement/COSPAS-SARSAT/ADALM-PLUTO/
+cd ~/Developpement/COSPAS-SARSAT/ADALM-PLUTO/
 git clone <repository_url> SARSAT_SGB
 cd SARSAT_SGB
 ```
