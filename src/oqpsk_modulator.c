@@ -246,6 +246,21 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
         if ((chip_idx + 1) % 5000 == 0) {
             printf("  %d/38400 chips (samples: %u)\n", chip_idx + 1, total_samples);
         }
+
+        // Debug last chip
+        if (chip_idx == 38399) {
+            printf("  [DEBUG] Last chip (38399): num_samples=%d, total=%u, acc=%.6f\n",
+                   num_samples, total_samples, sample_accumulator);
+        }
+    }
+
+    // FIX: Float32 accumulation errors cause 1 missing sample
+    // If accumulator > 0.5, we owe 1 more sample
+    if (sample_accumulator > 0.5f && total_samples < OQPSK_TOTAL_SAMPLES) {
+        // Use last chip values
+        iq_samples[total_samples++] = prev_i_chip + I * prev_q_chip;
+        printf("  [FIX] Added 1 sample to compensate float32 rounding (acc=%.6f)\n",
+               sample_accumulator);
     }
 
     free(i_prn);
