@@ -58,9 +58,10 @@ void oqpsk_init(oqpsk_state_t *state) {
 static void build_transmission_frame(const uint8_t *frame_bits, uint8_t *output_frame) {
     memset(output_frame, 0, FRAME_TOTAL_BITS);
 
-    // T.018 Preamble (50 bits): Alternating 0,1 pattern for synchronization
+    // T.018 §2.2.4: Preamble (50 bits) - all bits set to '0'
+    // "I and Q component information bits shall all be set to '0' during the preamble"
     for (int i = 0; i < PREAMBLE_BITS; i++) {
-        output_frame[i] = (i % 2);
+        output_frame[i] = 0;
     }
 
     // Copy 252-bit frame (2 header + 250 data)
@@ -79,13 +80,13 @@ uint32_t oqpsk_modulate_bit(uint8_t bit,
     uint32_t sample_idx = 0;
 
     // DSSS spreading: XOR data bit with PRN chips
-    // T.018 Table 2.3: bit=0 → invert PRN, bit=1 → keep PRN
+    // T.018 Table 2.4: bit=0 → PRN normal, bit=1 → PRN inverted
     int8_t spread_i[PRN_CHIPS_PER_BIT];
     int8_t spread_q[PRN_CHIPS_PER_BIT];
 
     for (int i = 0; i < PRN_CHIPS_PER_BIT; i++) {
-        spread_i[i] = bit ? i_chips[i] : -i_chips[i];
-        spread_q[i] = bit ? q_chips[i] : -q_chips[i];
+        spread_i[i] = bit ? -i_chips[i] : i_chips[i];
+        spread_q[i] = bit ? -q_chips[i] : q_chips[i];
     }
 
     // Generate samples for each chip with interpolation
