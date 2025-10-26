@@ -189,12 +189,14 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
     }
 
     // Apply DSSS spreading: XOR data bits with PRN
-    // T.018: bit=0 → invert PRN, bit=1 → keep PRN
+    // MATLAB/T.018 convention: bit=1 → INVERT PRN, bit=0 → KEEP PRN
+    // Reference: MATLAB DSSSReceiverForSARbasedTrackingSystem.pdf page 3
+    // "a logical 1 inverts the PRN sequence, while a logical 0 preserves the PRN"
     for (int bit = 0; bit < 150; bit++) {
         for (int chip = 0; chip < PRN_CHIPS_PER_BIT; chip++) {
             int chip_idx = bit * PRN_CHIPS_PER_BIT + chip;
-            i_prn[chip_idx] = i_bits[bit] ? i_prn[chip_idx] : -i_prn[chip_idx];
-            q_prn[chip_idx] = q_bits[bit] ? q_prn[chip_idx] : -q_prn[chip_idx];
+            i_prn[chip_idx] = i_bits[bit] ? -i_prn[chip_idx] : i_prn[chip_idx];
+            q_prn[chip_idx] = q_bits[bit] ? -q_prn[chip_idx] : q_prn[chip_idx];
         }
     }
 
