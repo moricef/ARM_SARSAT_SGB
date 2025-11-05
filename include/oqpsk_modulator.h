@@ -16,8 +16,8 @@
 
 // T.018 modulation parameters (Section 2.2.3)
 #define OQPSK_CHIP_RATE         38400       // 38.4 kchips/s per channel
-#define OQPSK_SAMPLE_RATE       614400      // 614.4 kHz (16 samples/chip, PlutoSDR minimum compatible)
-#define OQPSK_SAMPLES_PER_CHIP  16          // 614.4k / 38.4k = 16 samples/chip (integer)
+#define OQPSK_SAMPLE_RATE       307200      // 307.2 kHz (8 samples/chip, MATLAB reference)
+#define OQPSK_SAMPLES_PER_CHIP  8           // 307.2k / 38.4k = 8 samples/chip (MATLAB SPS)
 #define OQPSK_DATA_RATE         300         // 300 bps total
 #define OQPSK_CHIPS_PER_BIT     256         // 256 chips per bit (spreading factor)
 
