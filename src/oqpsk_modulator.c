@@ -202,6 +202,18 @@ uint32_t oqpsk_modulate_frame(const uint8_t *frame_bits,
 
     printf("  PRN sequences generated: 38,400 chips each (I and Q)\n");
 
+    // DEBUG: Dump chips after spreading (before interpolation)
+    FILE *chip_dump = fopen("chips_after_spreading.bin", "wb");
+    if (chip_dump) {
+        // Format: interleaved I/Q chips as int8_t
+        for (int i = 0; i < 38400; i++) {
+            fwrite(&i_prn[i], sizeof(int8_t), 1, chip_dump);
+            fwrite(&q_prn[i], sizeof(int8_t), 1, chip_dump);
+        }
+        fclose(chip_dump);
+        printf("  [DEBUG] Chips dumped to chips_after_spreading.bin (76,800 bytes)\n");
+    }
+
     // Generate I/Q samples with OQPSK (Q delayed by Tc/2)
     uint32_t total_samples = 0;
     float sample_accumulator = 0.0f;
