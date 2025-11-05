@@ -427,8 +427,8 @@ int pluto_save_iq_file(const char *filename,
     printf("✓ Saved %u I/Q samples to '%s' (%.2f KB)\n",
            num_samples, filename, file_size / 1024.0);
     printf("  Format: 32-bit float interleaved I/Q\n");
-    printf("  Sample rate: 2.5 MHz\n");
-    printf("  Duration: %.3f ms\n", (num_samples / 2500000.0) * 1000.0);
+    printf("  Sample rate: 614.4 kHz\n");
+    printf("  Duration: %.3f ms\n", (num_samples / 614400.0) * 1000.0);
 
     return 0;
 }

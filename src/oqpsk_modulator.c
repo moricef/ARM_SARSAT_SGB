@@ -5,7 +5,7 @@
  * Complete port from dsPIC33CK implementation:
  * - OQPSK modulation with Tc/2 offset (Q-channel delayed by half chip)
  * - DSSS spreading (256 chips/bit using PRN sequences)
- * - Sample rate: 2.5 MHz (65.1 samples/chip)
+ * - Sample rate: 614.4 kHz (16 samples/chip, integer SPS)
  * - Chip rate: 38.4 kchips/s
  * - Data rate: 300 bps
  * - Linear interpolation between chips
@@ -103,9 +103,9 @@ uint32_t oqpsk_modulate_bit(uint8_t bit,
         sample_accumulator -= num_samples;
 
         for (int s = 0; s < num_samples; s++) {
-            // Safety check (each bit generates ~16,666 samples: 256 chips × 65.1 samp/chip)
-            if (sample_idx >= 18000) {
-                fprintf(stderr, "OVERFLOW in oqpsk_modulate_bit: sample_idx=%u (max ~16666)\n", sample_idx);
+            // Safety check (each bit generates 4,096 samples: 256 chips × 16 samp/chip)
+            if (sample_idx >= 5000) {
+                fprintf(stderr, "OVERFLOW in oqpsk_modulate_bit: sample_idx=%u (max 4096)\n", sample_idx);
                 return sample_idx;
             }
 

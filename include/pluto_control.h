@@ -18,8 +18,8 @@
 
 // PlutoSDR default parameters
 #define PLUTO_DEFAULT_URI       "ip:192.168.2.1"
-#define PLUTO_SAMPLE_RATE       2500000     // 2.5 MHz (same as FGB, validated)
-#define PLUTO_BANDWIDTH         1000000     // 1 MHz RF bandwidth
+#define PLUTO_SAMPLE_RATE       614400      // 614.4 kHz (16 samples/chip, integer SPS)
+#define PLUTO_BANDWIDTH         200000      // 200 kHz RF bandwidth (signal BW ~58 kHz)
 #define PLUTO_DEFAULT_FREQ      403000000   // 403 MHz (training)
 #define PLUTO_DEFAULT_GAIN_DB   -10         // Conservative TX gain
 
