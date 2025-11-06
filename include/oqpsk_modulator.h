@@ -16,8 +16,8 @@
 
 // T.018 modulation parameters (Section 2.2.3)
 #define OQPSK_CHIP_RATE         38400       // 38.4 kchips/s per channel
-#define OQPSK_SAMPLE_RATE       614400      // 614.4 kHz (16 samples/chip, PlutoSDR minimum compatible)
-#define OQPSK_SAMPLES_PER_CHIP  16          // 614.4k / 38.4k = 16 samples/chip (integer)
+#define OQPSK_SAMPLE_RATE       2457600     // 2.4576 MHz (64 samples/chip, PlutoSDR compatible)
+#define OQPSK_SAMPLES_PER_CHIP  64          // 2.4576M / 38.4k = 64 samples/chip (integer)
 #define OQPSK_DATA_RATE         300         // 300 bps total
 #define OQPSK_CHIPS_PER_BIT     256         // 256 chips per bit (spreading factor)
 
@@ -26,7 +26,7 @@
 #define OQPSK_MESSAGE_BITS      250         // Message data
 #define OQPSK_TOTAL_BITS        300         // Preamble + Message
 #define OQPSK_BITS_PER_CHANNEL  150         // 150 bits on I, 150 bits on Q (parallel)
-#define OQPSK_TOTAL_SAMPLES     1300000     // 76,800 chips × 16 samp/chip + margin
+#define OQPSK_TOTAL_SAMPLES     5000000     // 76,800 chips × 64 samp/chip + margin (4.9M + margin)
 
 // OQPSK modulator state
 typedef struct {
