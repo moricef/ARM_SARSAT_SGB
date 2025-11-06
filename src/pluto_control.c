@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -391,15 +392,87 @@ uint32_t pluto_get_sample_rate(const pluto_ctx_t *ctx) {
 // FILE I/O FUNCTIONS
 // =============================================================================
 
+/**
+ * @brief Create SigMF metadata file
+ * @param base_filename Base filename (without extension)
+ * @param num_samples Number of samples
+ * @param sample_rate Sample rate in Hz
+ * @return 0 on success, -1 on error
+ */
+static int create_sigmf_meta(const char *base_filename, uint32_t num_samples, uint32_t sample_rate) {
+    char meta_filename[512];
+    snprintf(meta_filename, sizeof(meta_filename), "%s.sigmf-meta", base_filename);
+
+    FILE *fp = fopen(meta_filename, "w");
+    if (!fp) {
+        fprintf(stderr, "Failed to create metadata file '%s': %s\n",
+                meta_filename, strerror(errno));
+        return -1;
+    }
+
+    // Get current time in ISO 8601 format
+    time_t now = time(NULL);
+    struct tm *tm_info = gmtime(&now);
+    char datetime[64];
+    strftime(datetime, sizeof(datetime), "%Y-%m-%dT%H:%M:%SZ", tm_info);
+
+    // Write SigMF metadata in JSON format
+    fprintf(fp, "{\n");
+    fprintf(fp, "    \"global\": {\n");
+    fprintf(fp, "        \"core:datatype\": \"cf32_le\",\n");
+    fprintf(fp, "        \"core:sample_rate\": %u,\n", sample_rate);
+    fprintf(fp, "        \"core:version\": \"1.0.0\",\n");
+    fprintf(fp, "        \"core:description\": \"COSPAS-SARSAT T.018 2nd generation beacon test frame with OQPSK modulation, DSSS spreading (256 chips/bit), half-sine pulse shaping, SPS=%u\",\n", sample_rate / 38400);
+    fprintf(fp, "        \"core:author\": \"SARSAT_SGB Generator\",\n");
+    fprintf(fp, "        \"core:hw\": \"Software generated (baseband)\"\n");
+    fprintf(fp, "    },\n");
+    fprintf(fp, "    \"captures\": [\n");
+    fprintf(fp, "        {\n");
+    fprintf(fp, "            \"core:sample_start\": 0,\n");
+    fprintf(fp, "            \"core:frequency\": 0,\n");
+    fprintf(fp, "            \"core:datetime\": \"%s\"\n", datetime);
+    fprintf(fp, "        }\n");
+    fprintf(fp, "    ],\n");
+    fprintf(fp, "    \"annotations\": [\n");
+    fprintf(fp, "        {\n");
+    fprintf(fp, "            \"core:sample_start\": 0,\n");
+    fprintf(fp, "            \"core:sample_count\": %u,\n", num_samples);
+    fprintf(fp, "            \"core:comment\": \"Complete T.018 frame: 50-bit preamble + 250-bit message (300 bits total), 38400 chips/channel, %.3f second duration\"\n", (float)num_samples / sample_rate);
+    fprintf(fp, "        }\n");
+    fprintf(fp, "    ]\n");
+    fprintf(fp, "}\n");
+
+    fclose(fp);
+    return 0;
+}
+
 int pluto_save_iq_file(const char *filename,
                        const float complex *iq_samples,
-                       uint32_t num_samples) {
+                       uint32_t num_samples,
+                       uint32_t sample_rate) {
     if (!filename || !iq_samples || num_samples == 0) {
         fprintf(stderr, "Invalid parameters for file save\n");
         return -1;
     }
 
-    FILE *fp = fopen(filename, "wb");
+    // Extract base filename and create .sigmf-data filename
+    char base_filename[512];
+    char data_filename[512];
+
+    // Remove extension if present
+    const char *dot = strrchr(filename, '.');
+    if (dot && (strcmp(dot, ".iq") == 0 || strcmp(dot, ".sigmf-data") == 0)) {
+        size_t len = dot - filename;
+        strncpy(base_filename, filename, len);
+        base_filename[len] = '\0';
+    } else {
+        strncpy(base_filename, filename, sizeof(base_filename) - 1);
+        base_filename[sizeof(base_filename) - 1] = '\0';
+    }
+
+    snprintf(data_filename, sizeof(data_filename), "%s.sigmf-data", base_filename);
+
+    FILE *fp = fopen(data_filename, "wb");
     if (!fp) {
         fprintf(stderr, "Failed to open output file '%s': %s\n",
                 filename, strerror(errno));
@@ -422,13 +495,19 @@ int pluto_save_iq_file(const char *filename,
 
     fclose(fp);
 
+    // Create SigMF metadata file
+    if (create_sigmf_meta(base_filename, num_samples, sample_rate) < 0) {
+        fprintf(stderr, "Warning: Failed to create SigMF metadata file\n");
+    }
+
     // Calculate file size
     size_t file_size = num_samples * 2 * sizeof(float);
     printf("✓ Saved %u I/Q samples to '%s' (%.2f KB)\n",
-           num_samples, filename, file_size / 1024.0);
-    printf("  Format: 32-bit float interleaved I/Q\n");
-    printf("  Sample rate: 614.4 kHz\n");
-    printf("  Duration: %.3f ms\n", (num_samples / 614400.0) * 1000.0);
+           num_samples, data_filename, file_size / 1024.0);
+    printf("  Format: SigMF (cf32_le - 32-bit float interleaved I/Q)\n");
+    printf("  Sample rate: %.1f kHz\n", sample_rate / 1000.0);
+    printf("  Duration: %.3f ms\n", (num_samples / (float)sample_rate) * 1000.0);
+    printf("  Metadata: %s.sigmf-meta\n", base_filename);
 
     return 0;
 }
